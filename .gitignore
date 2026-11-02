@@ -1,0 +1,5 @@
+out/
+verify/
+push.log
+build.log
+*.blob.json
