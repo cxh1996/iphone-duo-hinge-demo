@@ -1,0 +1,154 @@
+name: build-unsigned-ipa
+
+# 编译 artemnovichkov/iPhone-Duo-by-Examples（MIT，已 vendor 进本仓库），
+# 产出未签名 IPA，供 Windows 侧用 Sideloadly + 免费 Apple ID 签名安装。
+# 不需要 Mac，也不需要付费开发者账号。
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "macOS runner 标签（镜像必须有 Xcode 27.1 / iOS 27.1 SDK）"
+        required: false
+        default: "macos-26"
+      min_sdk:
+        description: "要求的最低 iPhoneOS SDK 版本"
+        required: false
+        default: "27.1"
+  push:
+    branches: [main]
+    paths:
+      - "vendor/**"
+      - ".github/workflows/build-unsigned-ipa.yml"
+
+concurrency:
+  group: hinge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'macos-26' }}
+    timeout-minutes: 25
+
+    env:
+      MIN_SDK: ${{ inputs.min_sdk || '27.1' }}
+      PROJ: vendor/iPhoneDuoByExamples/iPhoneDuoByExamples.xcodeproj
+      TARGET: iPhoneDuoByExamples
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 环境体检（镜像 / Xcode）
+        run: |
+          set -euo pipefail
+          echo "runner image : $ImageOS / $ImageVersion"
+          sw_vers
+          echo "=== 可用的 Xcode ==="
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(没有 Xcode.app)"
+
+      - name: 选择 Xcode 27.1+（不够新就失败，不产出坏包）
+        run: |
+          set -euo pipefail
+          CANDIDATE=""
+          for pattern in "/Applications/Xcode_27.1*.app" "/Applications/Xcode_27.[1-9]*.app" "/Applications/Xcode_27*.app"; do
+            CANDIDATE=$(ls -d $pattern 2>/dev/null | sort -V | tail -n1 || true)
+            [ -n "$CANDIDATE" ] && break
+          done
+          if [ -z "$CANDIDATE" ]; then
+            echo "::error::镜像里没有 Xcode 27.x —— 该工程用 Xcode 27 的新 JSON 工程格式，旧版 Xcode 完全打不开。"
+            ls -d /Applications/Xcode*.app 2>/dev/null || true
+            exit 1
+          fi
+          echo "选用：$CANDIDATE"
+          sudo xcode-select -s "$CANDIDATE/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos || true
+
+      - name: 校验 SDK >= ${{ env.MIN_SDK }}
+        run: |
+          set -euo pipefail
+          SDK_VER=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iPhoneOS SDK = $SDK_VER (要求 >= $MIN_SDK)"
+          if [ "$(printf '%s\n%s\n' "$MIN_SDK" "$SDK_VER" | sort -V | head -n1)" != "$MIN_SDK" ]; then
+            echo "::error::SDK $SDK_VER 低于 $MIN_SDK，onHingeChange / DeviceHinge 编不出来"
+            exit 1
+          fi
+
+      - name: 查看工程可构建目标
+        run: |
+          set -euo pipefail
+          xcodebuild -list -project "$PROJ" || echo "( -list 不支持，继续 )"
+
+      - name: 编译（关闭全部签名）
+        run: |
+          set -uo pipefail
+          LOG=build.log
+          COMMON=(-project "$PROJ" -configuration Release -sdk iphoneos -derivedDataPath build
+                  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+                  CODE_SIGN_ENTITLEMENTS="" DEVELOPMENT_TEAM="" ONLY_ACTIVE_ARCH=NO)
+
+          echo "===== 尝试一：-target $TARGET ====="
+          if xcodebuild "${COMMON[@]}" -target "$TARGET" build > "$LOG" 2>&1; then
+            echo "OK (-target)"; tail -n 15 "$LOG"; exit 0
+          fi
+          cp "$LOG" build-target.log
+          echo "--- -target 失败，尾部日志 ---"; tail -n 40 "$LOG"
+
+          echo "===== 尝试二：-scheme $TARGET ====="
+          if xcodebuild "${COMMON[@]}" -scheme "$TARGET" -destination 'generic/platform=iOS' build > "$LOG" 2>&1; then
+            echo "OK (-scheme)"; tail -n 15 "$LOG"; exit 0
+          fi
+          echo "--- -scheme 也失败，尾部日志 ---"; tail -n 80 "$LOG"
+          echo "::error::两种构建方式都失败，见上"
+          exit 1
+
+      - name: 打包未签名 IPA
+        run: |
+          set -euo pipefail
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -n1)
+          if [ -z "$APP" ]; then
+            echo "::error::没找到 .app 产物"
+            find build -maxdepth 3 -name "*.app" || true
+            exit 1
+          fi
+          echo "app: $APP"
+
+          # 未签名包可能有残留的签名目录，清掉更干净
+          rm -rf "$APP/_CodeSignature" "$APP/embedded.mobileprovision" 2>/dev/null || true
+
+          echo "--- 架构 ---"
+          lipo -info "$APP/$TARGET" || true
+          echo "--- 关键 Info.plist 字段 ---"
+          BID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          MINOS=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist" || echo "?")
+          echo "CFBundleIdentifier = $BID"
+          echo "MinimumOSVersion   = $MINOS"
+          echo "CFBundleVersion    = $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist" || echo '?')"
+
+          rm -rf out && mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out
+          NAME=$(basename "$APP" .app)
+          zip -qry "${NAME}-unsigned.ipa" Payload
+          ls -lh "${NAME}-unsigned.ipa"
+          echo "IPA_NAME=${NAME}-unsigned.ipa" >> "$GITHUB_ENV"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuoByExamples-unsigned-ipa
+          path: out/*.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: 失败时保留构建日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            build-target.log
+          retention-days: 3
+          if-no-files-found: ignore
