@@ -1,6 +1,8 @@
 name: build-unsigned-ipa
 
-# 编译 artemnovichkov/iPhone-Duo-by-Examples（MIT，已 vendor 进本仓库），
+# 编译 artemnovichkov/iPhone-Duo-by-Examples（MIT，已 vendor 进本仓库）。
+# runner 必须是 xcode-27：该镜像基于 macOS 27.0.1，预装 Xcode 27.1（默认）/27.2 RC/27.0，
+# 而 macos-26 镜像只有 Xcode 26.x，编不了 iOS 27.1 的工程。
 # 产出未签名 IPA，供 Windows 侧用 Sideloadly + 免费 Apple ID 签名安装。
 # 不需要 Mac，也不需要付费开发者账号。
 
@@ -8,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: "macOS runner 标签（镜像必须有 Xcode 27.1 / iOS 27.1 SDK）"
+        description: "macOS runner 标签（xcode-27 = macOS 27 + Xcode 27.1，含 iOS 27.1 SDK）"
         required: false
-        default: "macos-26"
+        default: "xcode-27"
       min_sdk:
         description: "要求的最低 iPhoneOS SDK 版本"
         required: false
@@ -27,7 +29,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ${{ inputs.runner || 'macos-26' }}
+    runs-on: ${{ inputs.runner || 'xcode-27' }}
     timeout-minutes: 25
 
     env:

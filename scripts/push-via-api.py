@@ -116,6 +116,24 @@ def api(method, path, body=None, allow_404=False):
     sys.exit(f"{method} {url} 连试 20 次失败: {last_err}")
 
 
+def blob_sha1(data: bytes) -> str:
+    """算 git blob 的 SHA-1，用来和远端已有 blob 比对，跳过没变的文件。"""
+    import hashlib
+    h = hashlib.sha1()
+    h.update(b"blob %d\0" % len(data))
+    h.update(data)
+    return h.hexdigest()
+
+
+def remote_tree(full_name, branch):
+    """返回 {path: sha}；仓库为空时返回 {}。"""
+    ref = api("GET", f"repos/{full_name}/git/ref/heads/{branch}", allow_404=True)
+    if ref is None:
+        return {}
+    tree = api("GET", f"repos/{full_name}/git/trees/{ref['object']['sha']}?recursive=1")
+    return {t["path"]: t["sha"] for t in tree.get("tree", []) if t["type"] == "blob"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--branch", default="main")
@@ -148,18 +166,33 @@ def main():
         if ref is None:
             sys.exit("引导提交后仍读不到 ref，请检查默认分支名是否为 " + args.branch)
 
-    # 1) blobs
+    # 1) blobs —— 只上传内容变了的文件（本机丢包严重，能省一次是一次）
+    existing = remote_tree(full_name, args.branch)
     entries = []
+    changed = 0
     for i, rel in enumerate(files, 1):
         abs_path = os.path.join(REPO_ROOT, rel)
         with open(abs_path, "rb") as fh:
             data = fh.read()
+        local = blob_sha1(data)
+        if existing.get(rel) == local:
+            entries.append({"path": rel, "mode": "100755" if os.access(abs_path, os.X_OK) else "100644",
+                            "type": "blob", "sha": local})
+            print(f"  [{i:2d}/{len(files)}] skip {rel}（未改动）", flush=True)
+            continue
         blob = api("POST", f"repos/{full_name}/git/blobs",
                    {"content": base64.b64encode(data).decode("ascii"), "encoding": "base64"})
         entries.append({"path": rel, "mode": "100755" if os.access(abs_path, os.X_OK) else "100644",
                         "type": "blob", "sha": blob["sha"]})
+        changed += 1
         print(f"  [{i:2d}/{len(files)}] blob {rel}  ({len(data)} B)", flush=True)
         time.sleep(0.4)   # 别把代理和 API 打太急
+
+    removed = sorted(set(existing) - set(files))
+    if removed:
+        print(f"将删除远端多出的 {len(removed)} 个文件：" + ", ".join(removed[:5]) +
+              (" ..." if len(removed) > 5 else ""))
+    print(f"变更文件 {changed} 个，未变 {len(files) - changed} 个")
 
     # 2) tree（不带 base_tree = 全量快照）
     tree = api("POST", f"repos/{full_name}/git/trees", {"tree": entries})
