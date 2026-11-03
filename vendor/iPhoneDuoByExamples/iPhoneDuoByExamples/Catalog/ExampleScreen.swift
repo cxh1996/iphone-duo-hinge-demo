@@ -62,9 +62,16 @@ private struct ExampleInfoSheet: View {
 }
 
 enum Repository {
-    static let url = URL(string: "https://github.com/artemnovichkov/iPhone-Duo-by-Examples")!
+    /// This fork. The examples are vendored from
+    /// `artemnovichkov/iPhone-Duo-by-Examples` (MIT) and live under `vendor/`,
+    /// so the "View Source" link has to walk into that directory.
+    static let url = URL(string: "https://github.com/cxh1996/iphone-duo-hinge-demo")!
+
+    private static let vendorRoot = "vendor/iPhoneDuoByExamples"
 
     static func sourceURL(for example: Example) -> URL {
-        url.appending(path: "blob/main").appending(path: example.sourcePath)
+        url.appending(path: "blob/main")
+            .appending(path: vendorRoot)
+            .appending(path: example.sourcePath)
     }
 }

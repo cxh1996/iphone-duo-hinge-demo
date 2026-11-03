@@ -20,6 +20,7 @@ enum ExampleSection: String, CaseIterable, Identifiable {
 enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
     case hingeAngle
     case hingeHistory
+    case hingeRecorder
     case reservedRegions
     case avoidDivision
     case tabletop
@@ -40,7 +41,7 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
 
     var section: ExampleSection {
         switch self {
-        case .hingeAngle, .hingeHistory: .hinge
+        case .hingeAngle, .hingeHistory, .hingeRecorder: .hinge
         case .reservedRegions, .avoidDivision, .tabletop, .evenColumns: .reservedRegions
         case .splitArrangement, .overlayArrangement, .dualPanePatterns, .customArrangement: .arrangements
         case .verticalToolbar, .toolbarPriority, .containerMargins: .barsAndMargins
@@ -53,6 +54,7 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .hingeAngle: "Hinge Angle"
         case .hingeHistory: "Angle History"
+        case .hingeRecorder: "Hinge Recorder"
         case .reservedRegions: "Reserved Regions"
         case .avoidDivision: "Avoid the Crease"
         case .tabletop: "Tabletop & Book"
@@ -77,6 +79,8 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
             "Read the live hinge angle with onHingeChange and mirror it in a 3D model of the device."
         case .hingeHistory:
             "Record hinge updates over time and plot them with Swift Charts."
+        case .hingeRecorder:
+            "Capture every hinge update with a monotonic timestamp, mark display reconfigurations, and export the session as CSV and TXT."
         case .reservedRegions:
             "Query occlusion and division regions from GeometryProxy and draw them on top of your UI."
         case .avoidDivision:
@@ -114,6 +118,7 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .hingeAngle: "rotate.3d"
         case .hingeHistory: "chart.xyaxis.line"
+        case .hingeRecorder: "record.circle"
         case .reservedRegions: "rectangle.dashed"
         case .avoidDivision: "book.pages"
         case .tabletop: "laptopcomputer"
@@ -148,6 +153,7 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .hingeAngle: ["onHingeChange(isEnabled:_:)", "DeviceHingeContext", "DeviceHinge.angle"]
         case .hingeHistory: ["onHingeChange(isEnabled:_:)", "DeviceHinge"]
+        case .hingeRecorder: ["onHingeChange(isEnabled:_:)", "DeviceHinge.angle", "onGeometryChange(for:of:action:)", "mach_continuous_time()"]
         case .reservedRegions: ["GeometryProxy.reservedRegions(kind:options:)", "ReservedRegion.Kind", "ReservedRegion.QueryOptions"]
         case .avoidDivision: ["GeometryProxy.reservedRegions(kind:)", "ReservedRegion.Kind.division"]
         case .tabletop: ["GeometryProxy.reservedRegions(kind:)", "ReservedRegion.isActive"]
@@ -180,6 +186,7 @@ enum Example: String, CaseIterable, Identifiable, Hashable, Codable {
         switch self {
         case .hingeAngle: HingeAngleExample()
         case .hingeHistory: HingeHistoryExample()
+        case .hingeRecorder: HingeRecorderExample()
         case .reservedRegions: ReservedRegionsExample()
         case .avoidDivision: AvoidDivisionExample()
         case .tabletop: TabletopExample()

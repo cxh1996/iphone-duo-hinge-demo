@@ -5,6 +5,9 @@ struct iPhoneDuoByExamplesApp: App {
     var body: some Scene {
         WindowGroup {
             CatalogView()
+                // Recording lives at the root, not inside the recorder example,
+                // so a session survives navigation and keeps every fold.
+                .modifier(HingeRecordingHost())
         }
 
         // A window with a single example, opened with `openWindow(value:)`.
