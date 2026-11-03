@@ -2,7 +2,8 @@
 
 在**没有 Mac、不花一分钱**的前提下，把 iPhone Duo 的铰链角度 Demo 编成 `.ipa` 并装进真机。
 
-当前状态：**已构建成功，产物 `out/iPhoneDuoByExamples-unsigned.ipa`（806 KB）**，等你用 Sideloadly 签名安装。
+当前状态：**已构建成功，产物 `out/iPhoneDuoByExamples-unsigned.ipa`（885 KB）**，等你用 Sideloadly 签名安装。
+本版新增 **Hinge Recorder** 示例：把每次铰链回调的「角度 + 单调时间戳」连同切屏重排事件录成 CSV/TXT，可直接分享到电脑。
 
 ---
 
@@ -13,11 +14,13 @@
 | 分类 | 示例 |
 |---|---|
 | **铰链读数（你们要的）** | `HingeAngleExample`（`onHingeChange` 实时角度）、`HingeHistoryExample`（角度变化历史） |
+| **数据采集（本研究新增）** | `HingeRecorderExample` —— 角度 + 单调时间戳 + 切屏重排事件录成 CSV/TXT，可分享导出 |
 | 折痕与布局 | `ReservedRegionsExample`、`AvoidDivisionExample`、`SafeAreasExample`、`ContainerMarginsExample` |
 | 分屏形态 | `SplitArrangementExample`、`OverlayArrangementExample`、`CustomArrangementExample`、`EvenColumnsExample`、`DualPanePatternsExample`、`SplitViewSideExample` |
 | 姿态相关 | `FoldedUnfoldedExample`、`TabletopExample`、`VerticalToolbarExample`、`ToolbarPriorityExample`、`CoverAccessoryExample` |
 
-源码在 `vendor/iPhoneDuoByExamples/`，**24 个 Swift 文件与上游逐字节一致**；唯一改动是把 bundle id 换成 `com.cxh1996.iPhoneDuoByExamples`（免费的 Apple ID 无法注册作者团队名下的 App ID）。详见 `vendor/NOTICE.md`。
+源码在 `vendor/iPhoneDuoByExamples/`，上游 24 个 Swift 文件与原始版本逐字节一致；新增 1 个 `HingeRecorderExample.swift`，
+并改了 4 个文件（bundle id、示例注册、根视图订阅、View Source 链接）。逐条改动见 `vendor/NOTICE.md`。
 
 ## 2. 怎么装到 iPhone Duo
 
@@ -28,11 +31,36 @@
 3. **Apple ID** 填你的免费 Apple ID（不需要付费开发者账号）
 4. 点 **Start**，按提示输入密码（如需双重认证，Sideloadly 会让你在弹窗里填验证码）
 5. 完成后手机上「设置 → 通用 → VPN 与设备管理」→ 信任你的开发者证书
-6. 打开 App「Duo by Examples」→ 进 **Hinge Angle** 折手机看角度
+6. 打开 App「Duo by Examples」→ 进 **Hinge Angle** 折手机看角度；要采数据就进 **Hinge Recorder**
 
 **免费账号的三个硬限制**（Apple 定的，与工具无关）：每次签名 **7 天过期**、最多同时 **3 个 App**、不能上 TestFlight/App Store。7 天到期用同一个 ipa 重装即可覆盖，Sideloadly 的 `sideloadlydaemon` 可以自动续签。
 
-## 3. 怎么重新构建
+> iTunes / iCloud **不用装**。Sideloadly 0.60 的更新日志写明「2FA now works correctly even without iTunes (Windows)」，官网那句「requires iTunes & iCloud」是旧文案。本机 iTunes 也确实装不上（winget 静默参数绕过提权 → MSI 1603；事件日志 `MsiInstaller 10005 没有足够权限为所有机器用户安装`），但不影响安装流程。
+>
+> 只需要登录 **Sideloadly 里的 Apple ID**（免费账号 + 双重认证）；手机端**不需要登录任何账号**，只要「信任此电脑 / 开发者模式 / 信任证书」三步授权。
+
+## 3. 采一次数据：Hinge Recorder 怎么用
+
+进 **Hinge Recorder**，一次会话的完整流程：
+
+1. 点 **Start Recording**（会话文件在点下的那一刻创建，之后每秒落盘一次）
+2. 按界面里 **What to capture** 的三条协议折手机：P1 停在 90° 不动 10 秒 → P2 慢扫 0°→180° 三次 → P3 快速开合三次
+3. 想标记某刻就点 **Mark**（可填备注），比如「合到一半停住」
+4. 点 **Stop & Save** → 下方 **Exports** 列表出现 `hinge-<时间戳>.csv` 和 `.txt`
+5. 点 **Share CSV + TXT** → 分享面板 → 微信「文件传输助手」/ 邮件 / 存到「文件」→ 电脑
+
+生成的两个文件：
+
+| 文件 | 内容 |
+|---|---|
+| `hinge-*.csv` | 10 列纯原始量：`seq,event,mono_ns,epoch_s,angle_deg,angle_rad,status,w_pt,h_pt,note`，UTF-8 带 BOM（Windows Excel 直接双击不乱码） |
+| `hinge-*.txt` | 人眼可读摘要（投递间隔 median/p95/max、角度范围与最小步长、断档、每次切屏的夹逼区间）+ 同一份数据的制表符表格 |
+
+关键设计取舍写在 `docs/MEASUREMENT-PLAN.md`：录制期间**不画图、不统计**，只留 2 Hz 大字 HUD；
+回调里只读角度 + 取 `mach_continuous_time` + 追加一行，不做格式化，避免用主线程跟被测对象抢时间。
+`geom` 行（窗口尺寸变化）是「切屏」的直接证据，它和 `hinge` 行在同一时钟上，所以能算「切屏发生在多少度」。
+
+## 4. 怎么重新构建
 
 改动 `vendor/` 下的代码后，一条命令：
 
@@ -45,7 +73,7 @@ python scripts/build-and-fetch.py                                   # 等构建 
 
 也可以直接去 Actions 页面手动 Run workflow，可调两个参数：`runner`（默认 `xcode-27`）、`min_sdk`（默认 `27.1`）。
 
-## 4. 关键技术事实（踩出来的，别再试错）
+## 5. 关键技术事实（踩出来的，别再试错）
 
 | 事实 | 说明 |
 |---|---|
@@ -56,7 +84,7 @@ python scripts/build-and-fetch.py                                   # 等构建 
 | **空仓库不能用 Git Data API** | 会返回 `409 Git Repository is empty`，必须先用 Contents API 落一个文件引导 |
 | **本机到 api.github.com 约 50% 丢包** | 所有请求都要重试。推送脚本因此做了增量上传（本地算 blob SHA-1 与远端比对），全量 45 文件要 16 分钟，增量 4 文件几秒 |
 
-## 5. 已验证的产物信息
+## 6. 已验证的产物信息
 
 ```
 CFBundleIdentifier    = com.cxh1996.iPhoneDuoByExamples
@@ -65,16 +93,20 @@ MinimumOSVersion      = 27.1
 DTSDKName             = iphoneos27.1        ← 确实用 iOS 27.1 SDK 编的
 CFBundleSupportedPlatforms = [iPhoneOS]
 UIDeviceFamily        = [1, 2]
-可执行文件              = 2,132,640 B（arm64）
+UIFileSharingEnabled  = true                ← 「文件」App 里能看到 Exports/
+LSSupportsOpeningDocumentsInPlace = true
+可执行文件              = 2,443,064 B（arm64）
 _CodeSignature         = 无（未签名，符合预期）
 embedded.mobileprovision = 无
-二进制符号             = 含 onHingeChange / DeviceHinge / HingeAngleExample
+二进制符号             = 含 onHingeChange / DeviceHinge / HingeRecorder / HingeRecordingHost / mach_continuous_time
 ```
 
-## 6. 文件清单
+## 7. 文件清单
 
 ```
 ├── vendor/iPhoneDuoByExamples/        上游工程（MIT，见 NOTICE.md）
+│   └── iPhoneDuoByExamples/Examples/HingeRecorderExample.swift   ← 新增的采集器
+├── docs/MEASUREMENT-PLAN.md           采集方案 + 实施记录 + 离线分析脚本
 ├── .github/workflows/build-unsigned-ipa.yml   云端构建流水线
 ├── scripts/
 │   ├── gh-device-login.py      设备码登录，拿可写 token 存到 ~/.config/duo-ci-token
@@ -85,7 +117,7 @@ embedded.mobileprovision = 无
 └── HingeDemo/                          早期自写的极简 demo（含 UIKit 交叉验证页，未参与构建）
 ```
 
-## 7. 给 display 模块同事的对照
+## 8. 给 display 模块同事的对照
 
 | 维度 | Android | iOS 27.1 |
 |---|---|---|
