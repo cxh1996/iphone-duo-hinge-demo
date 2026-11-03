@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Only the keys the build system refuses to take from INFOPLIST_KEY_*.
+	  Everything else (scene manifest, launch screen, orientations, camera usage)
+	  is still generated from the target's build settings and merged on top of
+	  this file. Keep this file minimal so there is one obvious source of truth.
+	-->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+</dict>
+</plist>

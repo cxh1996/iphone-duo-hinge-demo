@@ -15,6 +15,7 @@
       "kind": "group",
       "path": "iPhoneDuoByExamples",
       "children": [
+        { "path": "Info.plist" },
         {
           "kind": "group",
           "path": "App",
@@ -95,12 +96,12 @@
         "CODE_SIGN_STYLE": "Automatic",
         "ENABLE_PREVIEWS": "YES",
         "GENERATE_INFOPLIST_FILE": "YES",
+        "INFOPLIST_FILE": "iPhoneDuoByExamples/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Duo by Examples",
         "INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace": "YES",
         "INFOPLIST_KEY_NSCameraUsageDescription": "The Cover Display Accessory example runs the camera to show a second scene on the cover display.",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation": "YES",
         "INFOPLIST_KEY_UIApplicationSupportsMultipleScenes": "YES",
-        "INFOPLIST_KEY_UIFileSharingEnabled": "YES",
         "INFOPLIST_KEY_UILaunchScreen_Generation": "YES",
         "INFOPLIST_KEY_UISupportedInterfaceOrientations": "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown",
         "LD_RUNPATH_SEARCH_PATHS": [
